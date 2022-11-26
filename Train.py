@@ -47,9 +47,9 @@ MODELFILEPATH = os.path.join(MODELFILEDIR, MODELNAME+'_model.pt')
 
 # 图片素材和索引路径：
 # Image file path (Dataset) and the path of indexing csv file 
-ImagePath = './NIST2016/'
-TrainDatasetIndex = './NIST2016/Train.csv'
-TestDatasetIndex = './NIST2016/Test.csv'
+ImagePath = './NIST2016_Crop/'
+TrainDatasetIndex = './NIST2016_Crop/Train.csv'
+TestDatasetIndex = './NIST2016_Crop/Test.csv'
 
 # 可以将数据线包装为Dataset，然后传入DataLoader中取样
 # Build a Dataset for local datas
@@ -85,7 +85,7 @@ class MyDataset(Dataset):
 # 定义准确率函数
 # defination of accracy function
 def accuracy(output:torch.Tensor , mask):
-    output = (output > 0.5).float()
+    output = (output > 0.5).float()  # 四舍五入
     error = torch.sum(torch.abs(output - mask))
     acc = 1 - error / (BatchSize * mask.shape[2] * mask.shape[3])
     return acc

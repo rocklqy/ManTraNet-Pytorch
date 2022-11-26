@@ -60,32 +60,32 @@ class BayarConv2D(nn.Module):
         nn.init.xavier_normal_(self.weight)
         # print(self.weight)
     
-    def _initialize_mask(self) :
+    def _initialize_mask(self):
         chanelin = self.weight.shape[0]
         chanelout  = self.weight.shape[1]
         ksize = self.weight.shape[2] 
         m = np.zeros([chanelin, chanelout, ksize, ksize]).astype('float32')
-        m[:,:,ksize//2,ksize//2] = 1.
-        self.mask = torch.tensor(m).cuda()
-    
-    def _get_new_weight(self) :
+        m[:,:,ksize//2,ksize//2] = 1.  # 中间像素为1，其他为0  共9个
+        # self.mask = torch.tensor(m).cuda()
+        self.mask = torch.tensor(m)
+    def _get_new_weight(self):
         with torch.no_grad():
-            if self.mask is None :
+            if self.mask is None:
                 self._initialize_mask()
             self.weight.data *= (1-self.mask)
             # print(self.weight)
-            rest_sum = torch.sum(self.weight, dim=(2,3), keepdims=True)
+            rest_sum = torch.sum(self.weight, dim=(2, 3), keepdims=True)  # 最后两个维度(矩阵)的和
             # print('sum')
             # print(rest_sum)
             # print(rest_sum.shape)
             self.weight.data /= rest_sum + 1e-7
-            self.weight.data -= self.mask
+            self.weight.data -= self.mask  # 中间像素=-1
             # print(self.weight)
             # print(self.weight.grad)
     
     def forward(self, x):
         self._get_new_weight()
-        return torch.nn.functional.conv2d(x, weight=self.weight, padding = 2)
+        return torch.nn.functional.conv2d(x, weight=self.weight, padding=2)
 
 ''' 
     Kernel coefficient copy from the Mantra-Net source code, with 3 input chanels and 9 output chanels, which is unexpected different from the papar.
@@ -119,7 +119,7 @@ class SRMConv2D(nn.Module):
                 this_ch_kernel = np.zeros([5,5,3]).astype('float32')
                 this_ch_kernel[:,:,ch] = srm
                 kernel.append( this_ch_kernel )
-        kernel = np.stack( kernel, axis=-1 )
+        kernel = np.stack( kernel, axis=-1 ) # 从9*5*5*3 到 5*5*3*9
         # srm_kernel = K.variable( kernel, dtype='float32', name='srm' )
         '''
         Keras kernel form   (kernel_width, kernel_height, inputChanels, outputChanels)
@@ -134,10 +134,11 @@ class SRMConv2D(nn.Module):
     
     def __init__(self):
         super(SRMConv2D,self).__init__()
-        self.weight = torch.tensor(self._build_SRM_kernel()).cuda()
+        # self.weight = torch.tensor(self._build_SRM_kernel()).cuda()
+        self.weight = torch.tensor(self._build_SRM_kernel())
     def forward(self, x):
         with torch.no_grad():
-            return torch.nn.functional.conv2d(x, weight=self.weight, padding = 2)
+            return torch.nn.functional.conv2d(x, weight=self.weight, padding = 2)  # 保持图像大小不变
 
 class CombindConv2D(nn.Module):
     def __init__(self, outputChanels) -> None:
@@ -164,30 +165,67 @@ class CombindConv2D(nn.Module):
 
 if __name__ =='__main__':
     # 测试完整Combind
-    # net = CombindConv2D(16)
-    # # image_dir = 'NC2016_Test0613/world/NC2016_2198.jpg'
+    net = CombindConv2D(16)
+    image_dir = '../NC2016_Test0613/probe/img00.png'
     # image_dir = 'NC2016_Test0613/probe/NC2016_8411.jpg'
     # # image_dir = '1.jpg'
-    # image = Image.open(image_dir)
-    # image = np.array(image)
-    # print(image.shape)
-    # trans = transforms.ToTensor()
-    # t = trans(image).unsqueeze(0)
-    # t = net(t)
-    # print(net)
-    # print(t.shape)
+    image = Image.open(image_dir)
+    image = np.array(image)
+    print(image.shape)
+    trans = transforms.ToTensor()
+    t = trans(image).unsqueeze(0)
+    t = net(t)
+    print(net)
+    print(t.shape)
+
     ##########
-    # 测试
+    # 测试normal conv2d
+    '''
+    net = nn.Conv2d(3, 4, kernel_size=5, padding=2)
+    image_dir = '../NC2016_Test0613/probe/img00.png'
+    image = Image.open(image_dir).resize((1200, 1200))
+    image = np.array(image)
+    trans = transforms.ToTensor()
+    t = trans(image).unsqueeze(0)
+    t = net(t)
+    print(t[0].shape)
+    trans = transforms.ToPILImage()
+    img = trans(t[0])
+    print(np.max(img))
+    print(np.min(img))
+    plt.imshow(img, cmap='jet')
+    plt.show()
+    '''
+    # 测试 BayarConv2D
+    '''
+    net = BayarConv2D(3, 3, 5)
+    image_dir = '../NC2016_Test0613/probe/img00.png'
+    image = Image.open(image_dir).resize((1200, 1200))
+    image = np.array(image)
+    trans = transforms.ToTensor()
+    t = trans(image).unsqueeze(0)
+    t = net(t)
+    print(t[0].shape)
+    trans = transforms.ToPILImage()
+    img = trans(t[0])
+    print(np.max(img))
+    print(np.min(img))
+    plt.imshow(img, cmap='jet')
+    plt.show()
     # a = torch.Tensor()
     # b = BayarConv2D(3,3,5)
     # b._initialize_mask()
     # b._get_new_weight()
+    '''
+
+    # 测试SRMConv2D
+    '''
     net = SRMConv2D()
     # image_dir = 'NC2016_Test0613/world/NC2016_2198.jpg'
-    image_dir = 'NC2016_Test0613/probe/NC2016_8411.jpg'
+    image_dir = '../NC2016_Test0613/probe/img00.png'
     # image_dir = 'NC2016_Test0613/probe/NC2016_6003.jpg'
     # image_dir = '1.jpg'
-    image = Image.open(image_dir).resize((1200,1200))
+    image = Image.open(image_dir).resize((1200, 1200))
     image = np.array(image)
     # image = np.concatenate([image,image,image],axis=-1)
     print(image.shape)
@@ -226,3 +264,5 @@ if __name__ =='__main__':
     print(np.min(img))
     plt.imshow(img, cmap='jet')
     plt.show()
+    #  测试SRMConv2D End
+    '''

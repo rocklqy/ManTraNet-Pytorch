@@ -1,6 +1,6 @@
 import csv
 from random import shuffle
-DIR = '../NIST2016/'
+DIR = '../NIST2016_Crop/'
 IndexDir = DIR + 'index.csv'
 TrainDir = DIR + 'Train.csv'
 TestDir = DIR + 'Test.csv'
